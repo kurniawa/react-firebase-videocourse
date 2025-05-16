@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+.underline {
+  width: 52px;
+  height: 6px;
+  background: #F64920;
+  border-radius: 10px;
+}
+
+.font-poppins {font-family: 'Poppins', sans-serif;}.font-dm-sans {font-family: "DM Sans", serif;}.font-open-sans {font-family: "Open Sans", serif;}
+
+.select-custom-arrow {
+    appearance: none;
+    -moz-appearance: none;
+    background: transparent;
+    background-image: url("data:image/svg+xml;utf8,<svg fill='grey' height='24' viewBox='0 0 24 24' width='24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/><path d='M0 0h24v24H0z' fill='none'/></svg>");
+    background-repeat: no-repeat;
+    background-position-x: 95%;
+    background-position-y: center;
+}
+
+/* Table */
+.table-nice {
+    @apply shadow-lg;
+}
+.table-nice tr {
+    @apply border-b;
+}
+.table-nice tr th {
+    @apply py-2 bg-orange-200 text-slate-600;
+}
+.table-nice tr td {
+    @apply py-2.5 px-3 text-slate-700;
+}
+
+/* Table */
+.table-slim {
+    @apply shadow-lg rounded-lg;
+}
+/* .table-slim tr {
+    @apply border-b;
+} */
+.table-slim tr th {
+    @apply py-1 bg-slate-50 text-slate-600;
+}
+.table-slim tr td {
+    @apply py-1 px-1 text-slate-700;
+}
