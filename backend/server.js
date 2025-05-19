@@ -101,37 +101,51 @@ app.get('/api/users/:userId/profile', async (req, res) => {
   }
 });
 
-// Endpoint untuk menambahkan pengguna baru
+// MENAMBAH USER BARU DI AUTH DAN FIRESTORE
+// Fungsi untuk membuat user di auth dan firestore
+const createUserInAuthAndFirestore = async (userData) => {
+  // 1. Buat user di Firebase Authentication
+  const userCreationResult = await authAdmin.createUser({
+    email: userData.email,
+    password: userData.password,
+    displayName: userData.fullName, //simpan nama lengkap
+  });
+
+  // 2. Simpan data user ke Firestore
+  const userRef = db.collection('users').doc(userCreationResult.uid);
+  await userRef.set({
+    uid: userCreationResult.uid,
+    fullName: userData.fullName,
+    email: userData.email,
+    gender: userData.gender,
+    countryCode: userData.countryCode, // Pastikan ini tersedia
+    phoneNumber: userData.phoneNumber,
+    phoneNumberFull: userData.phoneNumberFull,
+    role: userData.role,
+    profilePictureURL: '',
+    profilePictureStoragePath: '',
+  });
+
+  return { uid: userCreationResult.uid, ...userData };
+};
+// Endpoint untuk menambahkan user baru
 app.post('/api/users', async (req, res) => {
   try {
-    const { uid, email, password, fullName, gender, countryCode, phoneNumber, phoneNumberFull, profilePictureURL, profilePictureStoragePath, role } = req.body;
+    const userData = req.body;
 
-    // 1. Buat pengguna di Firebase Authentication
-    const userAuth = await authAdmin.createUser({
-      uid,
-      email,
-      password,
-    });
+    // 1. Validasi nomor telepon di Firestore
+    const usersRef = db.collection('users');
+    const phoneNumberQuery = await usersRef.where('phoneNumberFull', '==', userData.phoneNumberFull).get();
+    if (!phoneNumberQuery.empty) {
+      return res.status(400).json({ message: 'Nomor telepon sudah terdaftar.' });
+    }
 
-    // 2. Simpan data pengguna ke Firestore
-    const userDocRef = db.collection('users').doc(uid);
-    await userDocRef.set({
-      uid,
-      fullName,
-      email,
-      gender,
-      countryCode,
-      phoneNumber,
-      phoneNumberFull,
-      profilePictureURL,
-      profilePictureStoragePath,
-      role,
-    });
-
-    res.status(201).json({ message: 'Pengguna berhasil ditambahkan', userId: uid });
+    // 2. Buat user di Auth dan Firestore
+    const newUser = await createUserInAuthAndFirestore(userData);
+    res.status(201).json({ message: 'User berhasil ditambahkan', data: newUser });
   } catch (error) {
     console.error('Error adding user:', error);
-    res.status(500).json({ message: 'Gagal menambahkan pengguna' });
+    res.status(500).json({ message: 'Gagal menambahkan user.', error: error.message });
   }
 });
 

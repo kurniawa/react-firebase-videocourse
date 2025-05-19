@@ -1,25 +1,18 @@
-import { Link, useNavigate } from "react-router-dom";
 import InputPhoneNumber from "../atoms/InputPhoneNumber.jsx";
 import InputPassword from "../atoms/InputPassword.jsx";
 import InputWithLabel from "../atoms/InputWithLabel.jsx";
 import SelectWithLabel from "../atoms/SelectWithLabel.jsx";
-import ButtonGoogle from "../atoms/ButtonGoogle.jsx";
 import ButtonLime500 from "../atoms/ButtonLime500.jsx";
-import ButtonGreen200 from "../atoms/ButtonGreen200.jsx";
-import LineHorizontalWithLabel from "../atoms/LineHorizontalWithLabel.jsx";
 import { useRef, useState } from "react";
 import LoadingSpinner from "../molecules/LoadingSpinner.jsx";
 import ValidationFeedback from "../atoms/ValidationFeedback.jsx";
-
-// Import Firebase Auth dan Firestore
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
-import { auth, db } from "../../config/firebaseConfig.js";
+import { useDispatch } from "react-redux";
+import { addUser } from "../../store/actions/dataActions.js";
 
 export default function AddUserForListView() {
     const fullNameRef = useRef(null);
     const emailRef = useRef(null);
-    const genderRef = useRef(null);
+    const genderRef = useRef('Female');
     const phoneNumberRef = useRef({});
     const passwordRef = useRef(null);
     const passwordConfirmationRef = useRef(null);
@@ -28,7 +21,7 @@ export default function AddUserForListView() {
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
 
-    const navigate = useNavigate();
+    const dispatch = useDispatch();
 
     const handleRegister = async (e) => {
         e.preventDefault();
@@ -90,68 +83,35 @@ export default function AddUserForListView() {
 
         phoneNumberFull = `${countryCode}${phoneNumberTrimmedFrontZero}`;
         
+        // Buat objek data user
+        const userData = {
+            fullName,
+            email,
+            gender,
+            countryCode,
+            phoneNumber,
+            phoneNumberFull,
+            password,
+            role: 'user', // Atur peran default
+        };
+        
         try {
-            // Cek apakah nomor telepon sudah terdaftar di Firestore
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("phoneNumberFull", "==", phoneNumberFull));
-            const querySnapshot = await getDocs(q);
-
-            if (!querySnapshot.empty) {
-                setError("Nomor telepon sudah terdaftar");
-                setLoading(false);
-                return;
-            }
-
-            // 1. Buat user dengan email dan password menggunakan Firebase Authentication
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const user = userCredential.user;
-
-            // 2. Simpan data pengguna tambahan ke Firestore
-            const usersCollectionRef = collection(db, "users");
-            await setDoc(doc(usersCollectionRef, user.uid), {
-                uid: user.uid,
-                fullName,
-                email,
-                password,
-                gender,
-                countryCode,
-                phoneNumber: phoneNumberTrimmedFrontZero,
-                phoneNumberFull,
-                role: "USER",
-                profilePictureURL: "", // Inisialisasi path gambar profil
-                profilePictureStoragePath: "", // Inisialisasi path gambar profil
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            });
-
-            setSuccess("Pendaftaran berhasil! Silakan login.");
-
-            // Setelah registrasi berhasil, lakukan sign out
-            await auth.signOut();
-
-            setTimeout(() => {
-                navigate("/login");
-                setLoading(false);
-            }, 1500);
-
-        } catch (error) {
-            console.error("Error during registration:", error);
-            let errorMessage = "Terjadi kesalahan saat mendaftar.";
-            if (error.code === 'auth/email-already-in-use') {
-                errorMessage = "Email sudah terdaftar.";
-            } else if (error.code === 'auth/invalid-email') {
-                errorMessage = "Format email tidak valid.";
-            } else if (error.code === 'auth/weak-password') {
-                errorMessage = "Password terlalu lemah.";
-            }
-            setError(errorMessage);
-        } finally {
-            setTimeout(() => {
-                setLoading(false);
-                
-            }, 1500);
+            // Dispatch action addUser
+            await dispatch(addUser(userData));
+            setSuccess("User berhasil ditambahkan.");
+            setLoading(false);
+            // Reset form
+            fullNameRef.current.value = '';
+            emailRef.current.value = '';
+            genderRef.current.value = 'Female';
+            phoneNumberRef.current.value = '';
+            passwordRef.current.value = '';
+            passwordConfirmationRef.current.value = '';
+            // navigate('/users');
+        } catch (err) {
+            setError(err.message || "Terjadi kesalahan saat menambahkan user.");
+            setLoading(false);
         }
-
     };
 
     return (
