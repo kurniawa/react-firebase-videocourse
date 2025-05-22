@@ -23,3 +23,4 @@ dist-ssr
 *.sln
 *.sw?
 backend/public/video-course-educational-firebase-adminsdk-fbsvc-7e99574ef4.json
+src/config/firebaseConfig.js

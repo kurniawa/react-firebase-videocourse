@@ -6,12 +6,15 @@ import SelectForEditProfile from "../atoms/SelectForEditProfile";
 import ValidationFeedback from "../atoms/ValidationFeedback";
 import InputPasswordEP from "../atoms/InputPasswordEP";
 import ButtonLime500 from "../atoms/ButtonLime500";
+import { deleteUser, editUser } from "../../store/actions/dataActions";
+import { useDispatch } from "react-redux";
 
-const EditProfileForListView = ({userData}) => {
+const EditProfileForListView = ({ userData }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(null);
 
+    const [uid, setUID] = useState(userData?.uid || "");
     const [fullName, setFullName] = useState(userData?.fullName || "");
     const [email, setEmail] = useState(userData?.email || "");
     const [gender, setGender] = useState(userData?.gender || "");
@@ -20,9 +23,12 @@ const EditProfileForListView = ({userData}) => {
     const [password, setPassword] = useState(userData?.password || "");
     const [passwordConfirmation, setPasswordConfirmation] = useState(userData?.password || "");
 
+    const dispatch = useDispatch();
+
     useEffect(() => {
         // Set nilai state berdasarkan data loggedInUser saat komponen mount atau loggedInUser berubah
         if (userData) {
+            setUID(userData.uid || "");
             setFullName(userData.fullName || "");
             setEmail(userData.email || "");
             setGender(userData.gender || "");
@@ -66,34 +72,12 @@ const EditProfileForListView = ({userData}) => {
         setError(null);
         setSuccess(null);
 
-        const editedFullName = fullName; // Menggunakan state
-        const editedEmail = email; // Menggunakan state
-        const editedGender = gender; // Menggunakan state
-        const editedCountryCode = countryCode; // Menggunakan state
-        const editedPhoneNumber = phoneNumber; // Menggunakan state
-        const editedPassword = password; // Menggunakan state
-        const editedPasswordConfirmation = passwordConfirmation; // Menggunakan state
         const editedPhoneNumberFull = `${countryCode}${phoneNumber.replace(/^0+/, "")}`;
 
-        if (!editedFullName || !editedEmail || !editedGender || !editedCountryCode || !editedPhoneNumber) {
+        if (!fullName || !email || !gender || !countryCode || !phoneNumber) {
             setError("Semua kolom wajib diisi!");
             setLoading(false);
             return;
-        }
-
-        if (editedPassword) {
-            if (editedPassword.length < 8) {
-                setError("Password minimal 8 karakter");
-                setLoading(false);
-                return;
-            }
-            if (editedPassword !== editedPasswordConfirmation) {
-                setError("Password dan Konfirmasi Password tidak sama");
-                setLoading(false);
-                return;
-            }
-            // TODO: Implement update password using Firebase Auth
-            console.log("Update password functionality needs to be implemented.");
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -104,45 +88,19 @@ const EditProfileForListView = ({userData}) => {
         }
 
         try {
-            const user = auth.currentUser;
-            if (user) {
-                // Update display name dan email di Firebase Authentication
-                const updates = {};
-                if (editedFullName !== user.displayName) {
-                    updates.displayName = fullName;
-                }
-                if (editedEmail !== user.email) {
-                    await updateEmail(user, email);
-                    updates.email = email; // Optional: Update local state if needed
-                }
-                if (Object.keys(updates).length > 0) {
-                    await updateProfile(user, updates);
-                    console.log("Firebase Auth profile updated.");
-                }
-
-                // Update data profil lainnya di Firestore
-                const userDocRef = doc(db, 'users', user.uid); // Asumsi koleksi 'users'
-                await updateDoc(userDocRef, {
-                    fullName: editedFullName,
-                    gender: editedGender,
-                    phoneNumber: editedPhoneNumber.replace(/^0+/, ""),
-                    phoneNumberFull: editedPhoneNumberFull,
-                    // Jangan update email dan displayName di sini karena sudah diupdate di Auth
-                });
-                console.log("Firestore profile updated.");
-
-                setSuccess("Profil berhasil diperbarui!");
-                setError(null);
-            } else {
-                setError("Pengguna tidak ditemukan. Silakan login kembali.");
+            const editedUserData = {
+                fullName,
+                email,
+                gender,
+                countryCode,
+                phoneNumber,
+                phoneNumberFull: editedPhoneNumberFull,
             }
-        } catch (error) {
-            console.error("Error updating profile:", error);
-            setError(error.message || "Terjadi kesalahan saat menyimpan profil.");
-            // Handle specific Firebase errors (e.g., email already in use)
-            if (error.code === 'auth/email-already-in-use') {
-                setError("Email sudah digunakan oleh akun lain.");
-            }
+
+            await dispatch(editUser(uid, editedUserData));
+            setSuccess("User berhasil diperbarui!");
+        } catch (err) {
+            setError(err.message || "Gagal memperbarui user.");
         } finally {
             setTimeout(() => {
                 setLoading(false);
@@ -150,39 +108,25 @@ const EditProfileForListView = ({userData}) => {
         }
     };
 
-    const handleDeleteUser = async () => {
+    const handleDeleteUser = async (uid) => {
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
         const confirmDelete = window.confirm("Apakah Anda yakin ingin menghapus akun ini? Tindakan ini tidak dapat dibatalkan.");
         if (!confirmDelete) {
             return;
         }
-        setLoading(true);
-        setError(null);
-        setSuccess(null);
 
         try {
-            const user = auth.currentUser;
-            if (user) {
-                // Hapus akun pengguna dari Firebase Authentication
-                await deleteUser(user);
-                console.log("Akun pengguna berhasil dihapus.");
-
-                // Hapus data pengguna dari Firestore
-                const userDocRef = doc(db, 'users', user.uid); // Asumsi koleksi 'users'
-                await deleteDoc(userDocRef);
-                console.log("Data pengguna berhasil dihapus dari Firestore.");
-
-                setSuccess("Akun dan data berhasil dihapus.");
-            } else {
-                setError("Pengguna tidak ditemukan. Silakan login kembali.");
-            }
-        } catch (error) {
-            console.error("Error deleting user:", error);
-            setError(error.message || "Terjadi kesalahan saat menghapus akun.");
+            await dispatch(deleteUser(uid));
+            // Jika berhasil, state Redux akan otomatis terupdate dan UI akan refresh
+            alert('User berhasil dihapus!'); // Gunakan modal kustom di produksi
+        } catch (err) {
+            alert(`Gagal menghapus user: ${err.message}`); // Gunakan modal kustom di produksi
         } finally {
-            setTimeout(() => {
-                setLoading(false);
-            }, 1500);
+            setLoading(false);
         }
+
     }
 
     return (
@@ -211,7 +155,7 @@ const EditProfileForListView = ({userData}) => {
             </div>
             <div className="flex justify-end gap-1">
                 <ButtonLime500 label="Konfirmasi Edit" type="submit" to={null} className="w-full h-[34px] xl:h-[36px] hover:cursor-pointer px-3" />
-                <button type="button" className="bg-red-400 text-white rounded-xl px-3 hover:cursor-pointer" onClick={handleDeleteUser}>Hapus</button>
+                <button type="button" className="bg-red-400 text-white rounded-xl px-3 hover:cursor-pointer" onClick={() => handleDeleteUser(uid)}>Hapus</button>
             </div>
         </form>
     );

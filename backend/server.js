@@ -47,21 +47,21 @@ app.get('/api/users', async (req, res) => {
     const usersCollectionRef = db.collection('users');
     const snapshot = await usersCollectionRef.get();
     const firestoreUsers = snapshot.docs.map(doc => {
-        const data = doc.data();
-        // Pastikan uid ada di data Firestore.
-        return {
-            uid: data.uid,
-            fullName: data.fullName,
-            email: data.email, // Duplikasi data, perlu penanganan jika email berbeda.
-            gender: data.gender,
-            countryCode: data.countryCode,
-            phoneNumber: data.phoneNumber,
-            phoneNumberFull: data.phoneNumberFull,
-            // password tidak boleh dikembalikan.
-            profilePictureURL: data.profilePictureURL,
-            profilePictureStoragePath: data.profilePictureStoragePath,
-            role: data.role
-        }
+      const data = doc.data();
+      // Pastikan uid ada di data Firestore.
+      return {
+        uid: data.uid,
+        fullName: data.fullName,
+        email: data.email, // Duplikasi data, perlu penanganan jika email berbeda.
+        gender: data.gender,
+        countryCode: data.countryCode,
+        phoneNumber: data.phoneNumber,
+        phoneNumberFull: data.phoneNumberFull,
+        // password tidak boleh dikembalikan.
+        profilePictureURL: data.profilePictureURL,
+        profilePictureStoragePath: data.profilePictureStoragePath,
+        role: data.role
+      }
     });
 
     // 3. Gabungkan data dari Auth dan Firestore
@@ -118,12 +118,15 @@ const createUserInAuthAndFirestore = async (userData) => {
     fullName: userData.fullName,
     email: userData.email,
     gender: userData.gender,
+    password: userData.password,
     countryCode: userData.countryCode, // Pastikan ini tersedia
     phoneNumber: userData.phoneNumber,
     phoneNumberFull: userData.phoneNumberFull,
     role: userData.role,
     profilePictureURL: '',
     profilePictureStoragePath: '',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   });
 
   return { uid: userCreationResult.uid, ...userData };
@@ -149,52 +152,93 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// Endpoint untuk mengedit pengguna
-app.put('/api/users/:uid', async (req, res) => {
-  const uid = req.params.uid;
-  try {
-    const { fullName, gender, countryCode, phoneNumber, phoneNumberFull, profilePictureURL, profilePictureStoragePath, role, email } = req.body;
-
-        // Update data di Firebase Authentication jika email diubah
-        if (email) {
-          await authAdmin.updateUser(uid, { email });
-        }
-
-    // Update data di Firestore
-    const userDocRef = db.collection('users').doc(uid);
-    await userDocRef.update({
-      fullName,
-      gender,
-      countryCode,
-      phoneNumber,
-      phoneNumberFull,
-      profilePictureURL,
-      profilePictureStoragePath,
-      role,
-    });
-
-    res.json({ message: 'Pengguna berhasil diubah', userId: uid });
-  } catch (error) {
-    console.error('Error updating user:', error);
-    res.status(500).json({ message: 'Gagal mengubah pengguna' });
-  }
-});
-
-// Endpoint untuk menghapus pengguna
+// Endpoint untuk menghapus user berdasarkan UID
 app.delete('/api/users/:uid', async (req, res) => {
   const uid = req.params.uid;
   try {
-    // 1. Hapus dokumen dari Firestore
-    const userDocRef = db.collection('users').doc(uid);
-    await userDocRef.delete();
-
-    // 2. Hapus pengguna dari Firebase Authentication
+    // 1. Hapus user dari Firebase Authentication
     await authAdmin.deleteUser(uid);
 
-    res.json({ message: 'Pengguna berhasil dihapus', userId: uid });
+    // 2. Hapus dokumen user dari Firestore
+    await db.collection('users').doc(uid).delete();
+
+    res.status(200).json({ message: `User dengan UID ${uid} berhasil dihapus.` });
   } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ message: 'Gagal menghapus pengguna' });
+    console.error(`Error deleting user ${uid}:`, error);
+    // Tangani error spesifik, misalnya jika user tidak ditemukan
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ message: 'User tidak ditemukan.' });
+    }
+    res.status(500).json({ message: 'Gagal menghapus user.', error: error.message });
+  }
+});
+
+// Endpoint untuk mengedit user berdasarkan UID
+app.put('/api/users/:uid', async (req, res) => {
+  const uid = req.params.uid;
+  const updatedData = req.body; // Data yang dikirim dari frontend
+
+
+
+  try {
+    // 1. Validasi data yang diterima
+    if (!updatedData || !updatedData.fullName || !updatedData.email || !updatedData.countryCode || !updatedData.phoneNumber) {
+      return res.status(400).json({ message: 'Data tidak lengkap. Pastikan fullName dan email ada.' });
+    }
+
+    // 2. Validasi nomor telepon di Firestore
+    // Validasi: Cek apakah phoneNumberFull yang baru sudah digunakan oleh user lain
+    if (updatedData.phoneNumberFull) {
+      const usersRef = db.collection('users');
+      const phoneNumberQuery = await usersRef.where('phoneNumberFull', '==', updatedData.phoneNumberFull).get();
+
+      if (!phoneNumberQuery.empty) {
+        // Jika ditemukan user dengan phoneNumberFull yang sama
+        let isConflict = false;
+        phoneNumberQuery.forEach(doc => {
+          // Pastikan UID dari user yang ditemukan BUKAN UID dari user yang sedang diedit
+          if (doc.id !== uid) {
+            isConflict = true;
+          }
+        });
+
+        if (isConflict) {
+          return res.status(400).json({ message: 'Nomor telepon sudah terdaftar untuk user lain.' });
+        }
+      }
+    }
+
+    // 3. Perbarui data di Firebase Authentication (jika ada perubahan email/displayName)
+    const authUpdate = {};
+    if (updatedData.email) authUpdate.email = updatedData.email;
+    if (updatedData.fullName) authUpdate.displayName = updatedData.fullName;
+
+    if (Object.keys(authUpdate).length > 0) {
+      await authAdmin.updateUser(uid, authUpdate);
+    }
+
+    // 4. Perbarui data di Firestore (users collection)
+    const userDocRef = db.collection('users').doc(uid);
+    await userDocRef.update({
+      fullName: updatedData.fullName,
+      email: updatedData.email, // Pastikan email juga diperbarui di Firestore jika perlu
+      gender: updatedData.gender,
+      countryCode: updatedData.countryCode,
+      phoneNumber: updatedData.phoneNumber,
+      phoneNumberFull: updatedData.phoneNumberFull,
+      // Jangan perbarui password atau role dari sini secara langsung tanpa validasi tambahan
+      // profilePictureURL: updatedData.profilePictureURL, // Jika ingin memperbarui ini
+      // profilePictureStoragePath: updatedData.profilePictureStoragePath, // Jika ingin memperbarui ini
+    });
+
+    res.status(200).json({ message: `User dengan UID ${uid} berhasil diperbarui.`, data: updatedData });
+  } catch (error) {
+    console.error(`Error updating user ${uid}:`, error);
+    // Tangani error spesifik, misalnya jika user tidak ditemukan
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ message: 'User tidak ditemukan.' });
+    }
+    res.status(500).json({ message: 'Gagal memperbarui user.', error: error.message });
   }
 });
 
