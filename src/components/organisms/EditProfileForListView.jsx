@@ -6,7 +6,7 @@ import SelectForEditProfile from "../atoms/SelectForEditProfile";
 import ValidationFeedback from "../atoms/ValidationFeedback";
 import InputPasswordEP from "../atoms/InputPasswordEP";
 import ButtonLime500 from "../atoms/ButtonLime500";
-import { deleteUser, editUser } from "../../store/actions/dataActions";
+import { deleteUser, editUser, fetchData } from "../../store/actions/dataActions";
 import { useDispatch } from "react-redux";
 
 const EditProfileForListView = ({ userData }) => {
@@ -99,6 +99,9 @@ const EditProfileForListView = ({ userData }) => {
 
             await dispatch(editUser(uid, editedUserData));
             setSuccess("User berhasil diperbarui!");
+
+            // Panggil ulang fetchData untuk memperbarui daftar user
+            dispatch(fetchData('users'));
         } catch (err) {
             setError(err.message || "Gagal memperbarui user.");
         } finally {
@@ -121,6 +124,8 @@ const EditProfileForListView = ({ userData }) => {
             await dispatch(deleteUser(uid));
             // Jika berhasil, state Redux akan otomatis terupdate dan UI akan refresh
             alert('User berhasil dihapus!'); // Gunakan modal kustom di produksi
+            // Panggil ulang fetchData untuk memperbarui daftar user
+            dispatch(fetchData('users'));
         } catch (err) {
             alert(`Gagal menghapus user: ${err.message}`); // Gunakan modal kustom di produksi
         } finally {

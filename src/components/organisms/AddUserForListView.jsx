@@ -7,7 +7,7 @@ import { useRef, useState } from "react";
 import LoadingSpinner from "../molecules/LoadingSpinner.jsx";
 import ValidationFeedback from "../atoms/ValidationFeedback.jsx";
 import { useDispatch } from "react-redux";
-import { addUser } from "../../store/actions/dataActions.js";
+import { addUser, fetchData } from "../../store/actions/dataActions.js";
 
 export default function AddUserForListView() {
     const fullNameRef = useRef(null);
@@ -108,6 +108,9 @@ export default function AddUserForListView() {
             passwordRef.current.value = '';
             passwordConfirmationRef.current.value = '';
             // navigate('/users');
+
+            // Setelah user berhasil ditambahkan, panggil ulang fetchData untuk memperbarui daftar user
+            dispatch(fetchData('users'));
         } catch (err) {
             setError(err.message || "Terjadi kesalahan saat menambahkan user.");
             setLoading(false);
